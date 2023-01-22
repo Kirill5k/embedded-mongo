@@ -13,6 +13,8 @@ import scala.concurrent.Future
 
 class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
 
+  override protected val mongoPort: Int = 27018
+
   val testDoc = Document("_id" := ObjectId(), "stringField" := "string", "intField" := 1)
 
   "An EmbeddedMongo" should {
@@ -34,7 +36,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
   def withEmbeddedMongoDatabase[A](test: MongoDatabase[IO] => IO[A]): Future[A] =
     withRunningEmbeddedMongo { serverAddress =>
       MongoClient
-        .fromServerAddress[IO](serverAddress)
+        .fromConnection[IO](serverAddress)
         .use { client =>
           for {
             db <- client.getDatabase("db")
