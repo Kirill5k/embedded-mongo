@@ -35,7 +35,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
           }
       }.unsafeToFuture()(IORuntime.global)
 
-    "start embedded mongodb instance with auth enabled" in
+    "not allow to connect to embedded instance without password" in
       withRunningEmbeddedMongo(20717, "user", "password") { connection =>
         MongoClient
           .fromConnectionString[IO](s"mongodb://${connection.toString().split("@")(1)}")
@@ -46,12 +46,8 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
               insertResult <- coll.insertOne(testDoc)
             } yield insertResult
           }
-          .map { _ =>
-            throw new RuntimeException("should not happen")
-          }
-          .handleError { error =>
-            error mustBe a[MongoCommandException]
-          }
+          .map(_ => fail("should not reach this"))
+          .handleError(_ mustBe a[MongoCommandException])
       }.unsafeToFuture()(IORuntime.global)
   }
 
