@@ -1,8 +1,12 @@
-ThisBuild / scalaVersion := "2.13.8"
+import sbtghactions.JavaSpec
 
-name         := "embedded-mongo"
-organization := "io.github.kirill5k"
-version      := "1.0"
+ThisBuild / scalaVersion                        := "2.13.8"
+ThisBuild / organization                        := "io.github.kirill5k"
+ThisBuild / githubWorkflowPublishTargetBranches := Nil
+ThisBuild / githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("19"))
+ThisBuild / version                             := "1.0"
+
+name := "embedded-mongo"
 libraryDependencies ++= Seq(
   "io.github.kirill5k" %% "mongo4cats-core"           % "0.6.6",
   "io.github.kirill5k" %% "mongo4cats-circe"          % "0.6.6",
