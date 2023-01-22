@@ -34,9 +34,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
   }
 
   def withEmbeddedMongoDatabase[A](test: MongoDatabase[IO] => IO[A]): Future[A] =
-    withRunningEmbeddedMongo { serverAddress =>
+    withRunningEmbeddedMongo { mongoConnection =>
       MongoClient
-        .fromConnection[IO](serverAddress)
+        .fromConnection[IO](mongoConnection)
         .use { client =>
           for {
             db <- client.getDatabase("db")
