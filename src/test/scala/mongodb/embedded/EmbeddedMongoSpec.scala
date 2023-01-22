@@ -2,6 +2,7 @@ package mongodb.embedded
 
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
+import com.mongodb.MongoCommandException
 import mongo4cats.bson.{Document, ObjectId}
 import mongo4cats.client.MongoClient
 import mongo4cats.bson.syntax._
@@ -31,6 +32,25 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
           .map { case (insertRes, foundDoc) =>
             foundDoc mustBe Some(testDoc)
             insertRes.wasAcknowledged() mustBe true
+          }
+      }.unsafeToFuture()(IORuntime.global)
+
+    "start embedded mongodb instance with auth enabled" in
+      withRunningEmbeddedMongo(20717, "user", "password") { connection =>
+        MongoClient
+          .fromConnectionString[IO](s"mongodb://${connection.toString().split("@")(1)}")
+          .use { client =>
+            for {
+              db           <- client.getDatabase("db")
+              coll         <- db.getCollection("coll")
+              insertResult <- coll.insertOne(testDoc)
+            } yield insertResult
+          }
+          .map { _ =>
+            throw new RuntimeException("should not happen")
+          }
+          .handleError { error =>
+            error mustBe a[MongoCommandException]
           }
       }.unsafeToFuture()(IORuntime.global)
   }
