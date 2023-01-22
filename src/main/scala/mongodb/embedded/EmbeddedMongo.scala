@@ -18,6 +18,9 @@ trait EmbeddedMongo {
   def withRunningEmbeddedMongo[F[_]: Async, A](test: MongoConnection => F[A]): F[A] =
     runMongo(mongoPort, mongoUsername, mongoPassword)(test)
 
+  def withRunningEmbeddedMongo[F[_] : Async, A](mongoPort: Int)(test: MongoConnection => F[A]): F[A] =
+    runMongo(mongoPort, mongoUsername, mongoPassword)(test)
+
   private def runMongo[F[_]: Async, A](port: Int, username: Option[String], password: Option[String])(test: MongoConnection => F[A]): F[A] =
     EmbeddedMongo
       .start[F](port, username, password)
