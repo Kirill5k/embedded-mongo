@@ -1,4 +1,5 @@
-scalaVersion := "2.13.8"
+ThisBuild / scalaVersion := "2.13.8"
+
 name         := "embedded-mongo"
 organization := "io.github.kirill5k"
 version      := "1.0"
