@@ -1,0 +1,1 @@
+# Embedded-mongo spike project
