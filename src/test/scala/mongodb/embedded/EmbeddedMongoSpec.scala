@@ -15,10 +15,10 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
 
   "An EmbeddedMongo" should {
 
-    "start embedded mongodb instance on random port" in
-      withRunningEmbeddedMongo { address =>
+    "start embedded mongodb instance" in
+      withRunningEmbeddedMongo {
         MongoClient
-          .fromConnectionString[IO](address.connectionString)
+          .fromConnectionString[IO](s"mongodb://localhost:$mongoPort")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -34,9 +34,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "start embedded mongodb instance on specified port" in
-      withRunningEmbeddedMongo(20717) { _ =>
+      withRunningEmbeddedMongo(20719) {
         MongoClient
-          .fromConnectionString[IO]("mongodb://localhost:20717")
+          .fromConnectionString[IO]("mongodb://localhost:20719")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -52,9 +52,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "not allow to connect to embedded instance without password" in
-      withRunningEmbeddedMongo(20717, "user", "password") { address =>
+      withRunningEmbeddedMongo(20720, "user", "password") {
         MongoClient
-          .fromConnectionString[IO](s"mongodb://${address.host}:${address.port}")
+          .fromConnectionString[IO]("mongodb://localhost:20720")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -67,9 +67,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "return error if user doesn't exist" in
-      withRunningEmbeddedMongo(20717) { address =>
+      withRunningEmbeddedMongo(20721) {
         MongoClient
-          .fromConnectionString[IO](s"mongodb://foo:bar@${address.host}:${address.port}")
+          .fromConnectionString[IO]("mongodb://foo:bar@localhost:20721")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -82,9 +82,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "start embedded mongodb instance with authed user" in
-      withRunningEmbeddedMongo(20717, "user", "password") { address =>
+      withRunningEmbeddedMongo(20722, "user", "password") {
         MongoClient
-          .fromConnectionString[IO](address.connectionString)
+          .fromConnectionString[IO]("mongodb://user:password@localhost:20722")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -99,10 +99,10 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
           }
       }.unsafeToFuture()(IORuntime.global)
 
-    "start embedded mongodb instance with authed user on random port" in
-      withRunningEmbeddedMongo("user", "password") { address =>
+    "start embedded mongodb instance with authed user on default port" in
+      withRunningEmbeddedMongo("user", "password") {
         MongoClient
-          .fromConnectionString[IO](address.connectionString)
+          .fromConnectionString[IO](s"mongodb://user:password@localhost:$mongoPort")
           .use { client =>
             for {
               db           <- client.getDatabase("db")

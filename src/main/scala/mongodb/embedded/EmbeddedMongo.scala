@@ -1,7 +1,7 @@
 package mongodb.embedded
 
 import cats.effect.{Async, Resource}
-import cats.syntax.apply._
+import cats.syntax.functor._
 import com.mongodb.client.MongoClients
 import de.flapdoodle.embed.mongo.commands.MongodArguments
 import de.flapdoodle.embed.mongo.config.Net
@@ -11,49 +11,37 @@ import de.flapdoodle.reverse.transitions.Start
 import de.flapdoodle.reverse.{Listener, StateID, TransitionWalker}
 import org.bson.Document
 
-final case class EmbeddedMongoInstanceAddress(
-    host: String,
-    port: Int,
-    username: Option[String],
-    password: Option[String]
-) {
-  def connectionString: String = {
-    val creds = (username, password).mapN((u, p) => s"$u:$p@").getOrElse("")
-    s"mongodb://$creds$host:$port"
-  }
-}
-
 trait EmbeddedMongo {
   protected val mongoPort: Int = 27017
   protected val mongoUsername: Option[String] = None
   protected val mongoPassword: Option[String] = None
 
-  def withRunningEmbeddedMongo[F[_]: Async, A](test: EmbeddedMongoInstanceAddress => F[A]): F[A] =
-    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(test(_))
+  def withRunningEmbeddedMongo[F[_]: Async, A](test: => F[A]): F[A] =
+    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(_ => test)
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoUsername: String,
       mongoPassword: String
   )(
-      test: EmbeddedMongoInstanceAddress => F[A]
+      test:  => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(_ => test)
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int
   )(
-      test: EmbeddedMongoInstanceAddress => F[A]
+      test: => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(_ => test)
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int,
       mongoUsername: String,
       mongoPassword: String
   )(
-      test: EmbeddedMongoInstanceAddress => F[A]
+      test: => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(_ => test)
 }
 
 object EmbeddedMongo {
@@ -62,10 +50,8 @@ object EmbeddedMongo {
       port: Int,
       username: Option[String],
       password: Option[String]
-  )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] =
-    Resource
-      .fromAutoCloseable(F.delay(startMongod(port, username, password)))
-      .map(getAddress(username, password))
+  )(implicit F: Async[F]): Resource[F, Unit] =
+    Resource.fromAutoCloseable(F.delay(startMongod(port, username, password))).void
 
   private def startMongod(
       port: Int,
@@ -81,16 +67,6 @@ object EmbeddedMongo {
       .start(Version.Main.V5_0, listener.toList: _*)
   }
 
-  private def getAddress(
-      username: Option[String],
-      password: Option[String]
-  )(
-      runningProcess: TransitionWalker.ReachedState[RunningMongodProcess]
-  ): EmbeddedMongoInstanceAddress = {
-    val address = runningProcess.current().getServerAddress
-    EmbeddedMongoInstanceAddress(address.getHost, address.getPort, username, password)
-  }
-
   private def insertUserListener(username: String, password: String): Listener =
     Listener
       .typedBuilder()
@@ -102,7 +78,7 @@ object EmbeddedMongo {
             .append("roles", java.util.Arrays.asList("userAdminAnyDatabase", "dbAdminAnyDatabase", "readWriteAnyDatabase"))
 
           val address = runningProcess.getServerAddress
-          val client  = MongoClients.create(EmbeddedMongoInstanceAddress(address.getHost, address.getPort, None, None).connectionString)
+          val client  = MongoClients.create(s"mongodb://${address.getHost}:${address.getPort}")
           try {
             val db = client.getDatabase("admin")
             db.runCommand(createUser)
