@@ -18,9 +18,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
   "An EmbeddedMongo" should {
 
     "start embedded mongodb instance in the background" in
-      withRunningEmbeddedMongo(20717) { connection =>
+      withRunningEmbeddedMongo(20717) { address =>
         MongoClient
-          .fromConnection[IO](connection)
+          .fromConnectionString[IO](address.connectionString)
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -36,9 +36,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "not allow to connect to embedded instance without password" in
-      withRunningEmbeddedMongo(20717, "user", "password") { connection =>
+      withRunningEmbeddedMongo(20717, "user", "password") { address =>
         MongoClient
-          .fromConnectionString[IO](s"mongodb://${connection.toString().split("@")(1)}")
+          .fromConnectionString[IO](s"mongodb://${address.host}:${address.port}")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
@@ -51,13 +51,13 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "return error if user doesn't exist" in
-      withRunningEmbeddedMongo(20717) { connection =>
+      withRunningEmbeddedMongo(20717) { address =>
         MongoClient
-          .fromConnectionString[IO](s"mongodb://foo:bar@${connection.toString().replaceAll("mongodb:\\/\\/", "")}")
+          .fromConnectionString[IO](s"mongodb://foo:bar@${address.host}:${address.port}")
           .use { client =>
             for {
-              db <- client.getDatabase("db")
-              coll <- db.getCollection("coll")
+              db           <- client.getDatabase("db")
+              coll         <- db.getCollection("coll")
               insertResult <- coll.insertOne(testDoc)
             } yield insertResult
           }
@@ -66,15 +66,15 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "start embedded mongodb instance with authed user" in
-      withRunningEmbeddedMongo(20717, "user", "password") { connection =>
+      withRunningEmbeddedMongo(20717, "user", "password") { address =>
         MongoClient
-          .fromConnection[IO](connection)
+          .fromConnectionString[IO](address.connectionString)
           .use { client =>
             for {
-              db <- client.getDatabase("db")
-              coll <- db.getCollection("coll")
+              db           <- client.getDatabase("db")
+              coll         <- db.getCollection("coll")
               insertResult <- coll.insertOne(testDoc)
-              foundDoc <- coll.find.first
+              foundDoc     <- coll.find.first
             } yield (insertResult, foundDoc)
           }
           .map { case (insertRes, foundDoc) =>
