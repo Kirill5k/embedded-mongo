@@ -59,21 +59,20 @@ object EmbeddedMongo {
       port: Option[Int],
       username: Option[String],
       password: Option[String]
-  )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] = {
-    val withAuth = username.isDefined && password.isDefined
-    val listener = if (withAuth) Some(insertUserListener(username.get, password.get)) else None
+  )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] =
     Resource
-      .fromAutoCloseable(F.delay(startMongod(port, withAuth, listener)))
+      .fromAutoCloseable(F.delay(startMongod(port, username, password)))
       .map(getAddress(username, password))
-  }
 
   private def startMongod(
-      mongoPort: Option[Int],
-      withAuth: Boolean,
-      listener: Option[Listener]
+      port: Option[Int],
+      username: Option[String],
+      password: Option[String]
   ): TransitionWalker.ReachedState[RunningMongodProcess] = {
-    val builder = Mongod.builder()
-    mongoPort.foreach(port => builder.net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(port))))
+    val withAuth = username.isDefined && password.isDefined
+    val listener = if (withAuth) Some(insertUserListener(username.get, password.get)) else None
+    val builder  = Mongod.builder()
+    port.foreach(p => builder.net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(p))))
     builder
       .mongodArguments(Start.to(classOf[MongodArguments]).initializedWith(MongodArguments.defaults().withAuth(withAuth)))
       .build()
