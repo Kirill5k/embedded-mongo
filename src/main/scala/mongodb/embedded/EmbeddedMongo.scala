@@ -24,9 +24,12 @@ final case class EmbeddedMongoInstanceAddress(
 }
 
 trait EmbeddedMongo {
+  protected val mongoPort: Int = 27017
+  protected val mongoUsername: Option[String] = None
+  protected val mongoPassword: Option[String] = None
 
   def withRunningEmbeddedMongo[F[_]: Async, A](test: EmbeddedMongoInstanceAddress => F[A]): F[A] =
-    EmbeddedMongo.start[F](None, None, None).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoUsername: String,
@@ -34,14 +37,14 @@ trait EmbeddedMongo {
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](None, Some(mongoUsername), Some(mongoPassword)).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](Some(mongoPort), None, None).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, mongoUsername, mongoPassword).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int,
@@ -50,13 +53,13 @@ trait EmbeddedMongo {
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    EmbeddedMongo.start[F](Some(mongoPort), Some(mongoUsername), Some(mongoPassword)).use(test(_))
+    EmbeddedMongo.start[F](mongoPort, Some(mongoUsername), Some(mongoPassword)).use(test(_))
 }
 
 object EmbeddedMongo {
 
   def start[F[_]](
-      port: Option[Int],
+      port: Int,
       username: Option[String],
       password: Option[String]
   )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] =
@@ -65,15 +68,14 @@ object EmbeddedMongo {
       .map(getAddress(username, password))
 
   private def startMongod(
-      port: Option[Int],
+      port: Int,
       username: Option[String],
       password: Option[String]
   ): TransitionWalker.ReachedState[RunningMongodProcess] = {
     val withAuth = username.isDefined && password.isDefined
     val listener = if (withAuth) Some(insertUserListener(username.get, password.get)) else None
-    val builder  = Mongod.builder()
-    port.foreach(p => builder.net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(p))))
-    builder
+    Mongod.builder()
+      .net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(port)))
       .mongodArguments(Start.to(classOf[MongodArguments]).initializedWith(MongodArguments.defaults().withAuth(withAuth)))
       .build()
       .start(Version.Main.V5_0, listener.toList: _*)

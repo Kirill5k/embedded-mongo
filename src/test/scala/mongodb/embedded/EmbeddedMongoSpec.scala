@@ -34,9 +34,9 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
 
     "start embedded mongodb instance on specified port" in
-      withRunningEmbeddedMongo(20717) { address =>
+      withRunningEmbeddedMongo(20717) { _ =>
         MongoClient
-          .fromConnectionString[IO](address.connectionString)
+          .fromConnectionString[IO]("mongodb://localhost:20717")
           .use { client =>
             for {
               db           <- client.getDatabase("db")
