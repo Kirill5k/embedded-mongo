@@ -2,17 +2,14 @@ package mongodb.embedded
 
 import cats.effect.{Async, Resource}
 import cats.syntax.apply._
-import cats.syntax.flatMap._
-import cats.syntax.functor._
+import com.mongodb.client.MongoClients
 import de.flapdoodle.embed.mongo.commands.MongodArguments
 import de.flapdoodle.embed.mongo.config.Net
 import de.flapdoodle.embed.mongo.distribution.Version
 import de.flapdoodle.embed.mongo.transitions.{Mongod, RunningMongodProcess}
 import de.flapdoodle.reverse.transitions.Start
-import de.flapdoodle.reverse.{Listener, TransitionWalker}
-import mongo4cats.bson.Document
-import mongo4cats.bson.syntax._
-import mongo4cats.client.MongoClient
+import de.flapdoodle.reverse.{Listener, StateID, TransitionWalker}
+import org.bson.Document
 
 final case class EmbeddedMongoInstanceAddress(
     host: String,
@@ -70,19 +67,23 @@ object EmbeddedMongo {
       password: Option[String]
   )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] = {
     val withAuth = username.isDefined && password.isDefined
+    val listener = if (withAuth) Some(insertUserListener(username.get, password.get)) else None
     Resource
-      .fromAutoCloseable(F.delay(startMongod(port, withAuth)))
-      .evalTap(runningProcess => F.whenA(withAuth)(insertUser(runningProcess, username.get, password.get)))
+      .fromAutoCloseable(F.delay(startMongod(port, withAuth, listener)))
       .map(getAddress(username, password))
   }
 
-  private def startMongod(mongoPort: Int, withAuth: Boolean, listeners: Listener*): TransitionWalker.ReachedState[RunningMongodProcess] =
+  private def startMongod(
+      mongoPort: Int,
+      withAuth: Boolean,
+      listener: Option[Listener]
+  ): TransitionWalker.ReachedState[RunningMongodProcess] =
     Mongod
       .builder()
       .net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(mongoPort)))
       .mongodArguments(Start.to(classOf[MongodArguments]).initializedWith(MongodArguments.defaults().withAuth(withAuth)))
       .build()
-      .start(Version.Main.V5_0, listeners: _*)
+      .start(Version.Main.V5_0, listener.toList: _*)
 
   private def getAddress(
       username: Option[String],
@@ -94,23 +95,26 @@ object EmbeddedMongo {
     EmbeddedMongoInstanceAddress(address.getHost, address.getPort, username, password)
   }
 
-  private def insertUser[F[_]](
-      runningProcess: TransitionWalker.ReachedState[RunningMongodProcess],
-      username: String,
-      password: String
-  )(implicit F: Async[F]): F[Unit] = {
-    val createUser = Document(
-      "createUser" := username,
-      "pwd"        := password,
-      "roles"      := List("userAdminAnyDatabase", "dbAdminAnyDatabase", "readWriteAnyDatabase")
-    )
-    MongoClient
-      .fromConnectionString(getAddress(None, None)(runningProcess).connectionString)
-      .use { client =>
-        for {
-          db <- client.getDatabase("admin")
-          _  <- db.runCommand(createUser.toBsonDocument())
-        } yield ()
-      }
+  private def insertUserListener(username: String, password: String): Listener = {
+    val expectedState = StateID.of(classOf[RunningMongodProcess])
+    Listener
+      .typedBuilder()
+      .onStateReached[RunningMongodProcess](
+        expectedState,
+        { runningProcess =>
+          val createUser = new Document("createUser", username)
+            .append("pwd", password)
+            .append("roles", java.util.Arrays.asList("userAdminAnyDatabase", "dbAdminAnyDatabase", "readWriteAnyDatabase"))
+
+          val address = runningProcess.getServerAddress
+          val client  = MongoClients.create(EmbeddedMongoInstanceAddress(address.getHost, address.getPort, None, None).connectionString)
+          try {
+            val db = client.getDatabase("admin")
+            db.runCommand(createUser)
+            ()
+          } finally client.close()
+        }
+      )
+      .build()
   }
 }
