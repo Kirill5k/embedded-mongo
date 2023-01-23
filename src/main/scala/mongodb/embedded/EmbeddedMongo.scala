@@ -90,12 +90,11 @@ object EmbeddedMongo {
     EmbeddedMongoInstanceAddress(address.getHost, address.getPort, username, password)
   }
 
-  private def insertUserListener(username: String, password: String): Listener = {
-    val expectedState = StateID.of(classOf[RunningMongodProcess])
+  private def insertUserListener(username: String, password: String): Listener =
     Listener
       .typedBuilder()
       .onStateReached[RunningMongodProcess](
-        expectedState,
+        StateID.of(classOf[RunningMongodProcess]),
         { runningProcess =>
           val createUser = new Document("createUser", username)
             .append("pwd", password)
@@ -111,5 +110,4 @@ object EmbeddedMongo {
         }
       )
       .build()
-  }
 }
