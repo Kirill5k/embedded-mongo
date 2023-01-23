@@ -11,13 +11,29 @@ import org.scalatest.wordspec.AsyncWordSpec
 
 class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
 
-  override protected val mongoPort: Int = 27018
-
   val testDoc = Document("_id" := ObjectId(), "stringField" := "string", "intField" := 1)
 
   "An EmbeddedMongo" should {
 
-    "start embedded mongodb instance in the background" in
+    "start embedded mongodb instance on random port" in
+      withRunningEmbeddedMongo { address =>
+        MongoClient
+          .fromConnectionString[IO](address.connectionString)
+          .use { client =>
+            for {
+              db           <- client.getDatabase("db")
+              coll         <- db.getCollection("coll")
+              insertResult <- coll.insertOne(testDoc)
+              foundDoc     <- coll.find.first
+            } yield (insertResult, foundDoc)
+          }
+          .map { case (insertRes, foundDoc) =>
+            foundDoc mustBe Some(testDoc)
+            insertRes.wasAcknowledged() mustBe true
+          }
+      }.unsafeToFuture()(IORuntime.global)
+
+    "start embedded mongodb instance on specified port" in
       withRunningEmbeddedMongo(20717) { address =>
         MongoClient
           .fromConnectionString[IO](address.connectionString)
@@ -67,6 +83,24 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
 
     "start embedded mongodb instance with authed user" in
       withRunningEmbeddedMongo(20717, "user", "password") { address =>
+        MongoClient
+          .fromConnectionString[IO](address.connectionString)
+          .use { client =>
+            for {
+              db           <- client.getDatabase("db")
+              coll         <- db.getCollection("coll")
+              insertResult <- coll.insertOne(testDoc)
+              foundDoc     <- coll.find.first
+            } yield (insertResult, foundDoc)
+          }
+          .map { case (insertRes, foundDoc) =>
+            foundDoc mustBe Some(testDoc)
+            insertRes.wasAcknowledged() mustBe true
+          }
+      }.unsafeToFuture()(IORuntime.global)
+
+    "start embedded mongodb instance with authed user on random port" in
+      withRunningEmbeddedMongo("user", "password") { address =>
         MongoClient
           .fromConnectionString[IO](address.connectionString)
           .use { client =>

@@ -24,19 +24,24 @@ final case class EmbeddedMongoInstanceAddress(
 }
 
 trait EmbeddedMongo {
-  protected val mongoPort: Int                = 27017
-  protected val mongoUsername: Option[String] = None
-  protected val mongoPassword: Option[String] = None
 
   def withRunningEmbeddedMongo[F[_]: Async, A](test: EmbeddedMongoInstanceAddress => F[A]): F[A] =
-    runMongo(mongoPort, mongoUsername, mongoPassword)(test)
+    runMongo(None, None, None)(test)
+
+  def withRunningEmbeddedMongo[F[_]: Async, A](
+      mongoUsername: String,
+      mongoPassword: String
+  )(
+      test: EmbeddedMongoInstanceAddress => F[A]
+  ): F[A] =
+    runMongo(None, Some(mongoUsername), Some(mongoPassword))(test)
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    runMongo(mongoPort, mongoUsername, mongoPassword)(test)
+    runMongo(Some(mongoPort), None, None)(test)
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int,
@@ -45,10 +50,10 @@ trait EmbeddedMongo {
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    runMongo(mongoPort, Some(mongoUsername), Some(mongoPassword))(test)
+    runMongo(Some(mongoPort), Some(mongoUsername), Some(mongoPassword))(test)
 
   private def runMongo[F[_]: Async, A](
-      port: Int,
+      port: Option[Int],
       username: Option[String],
       password: Option[String]
   )(
@@ -62,7 +67,7 @@ trait EmbeddedMongo {
 object EmbeddedMongo {
 
   def start[F[_]](
-      port: Int,
+      port: Option[Int],
       username: Option[String],
       password: Option[String]
   )(implicit F: Async[F]): Resource[F, EmbeddedMongoInstanceAddress] = {
@@ -74,16 +79,17 @@ object EmbeddedMongo {
   }
 
   private def startMongod(
-      mongoPort: Int,
+      mongoPort: Option[Int],
       withAuth: Boolean,
       listener: Option[Listener]
-  ): TransitionWalker.ReachedState[RunningMongodProcess] =
-    Mongod
-      .builder()
-      .net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(mongoPort)))
+  ): TransitionWalker.ReachedState[RunningMongodProcess] = {
+    val builder = Mongod.builder()
+    mongoPort.foreach(port => builder.net(Start.to(classOf[Net]).initializedWith(Net.defaults().withPort(port))))
+    builder
       .mongodArguments(Start.to(classOf[MongodArguments]).initializedWith(MongodArguments.defaults().withAuth(withAuth)))
       .build()
       .start(Version.Main.V5_0, listener.toList: _*)
+  }
 
   private def getAddress(
       username: Option[String],
