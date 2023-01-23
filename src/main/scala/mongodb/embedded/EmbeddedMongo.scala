@@ -26,7 +26,7 @@ final case class EmbeddedMongoInstanceAddress(
 trait EmbeddedMongo {
 
   def withRunningEmbeddedMongo[F[_]: Async, A](test: EmbeddedMongoInstanceAddress => F[A]): F[A] =
-    runMongo(None, None, None)(test)
+    EmbeddedMongo.start[F](None, None, None).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoUsername: String,
@@ -34,14 +34,14 @@ trait EmbeddedMongo {
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    runMongo(None, Some(mongoUsername), Some(mongoPassword))(test)
+    EmbeddedMongo.start[F](None, Some(mongoUsername), Some(mongoPassword)).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    runMongo(Some(mongoPort), None, None)(test)
+    EmbeddedMongo.start[F](Some(mongoPort), None, None).use(test(_))
 
   def withRunningEmbeddedMongo[F[_]: Async, A](
       mongoPort: Int,
@@ -50,18 +50,7 @@ trait EmbeddedMongo {
   )(
       test: EmbeddedMongoInstanceAddress => F[A]
   ): F[A] =
-    runMongo(Some(mongoPort), Some(mongoUsername), Some(mongoPassword))(test)
-
-  private def runMongo[F[_]: Async, A](
-      port: Option[Int],
-      username: Option[String],
-      password: Option[String]
-  )(
-      test: EmbeddedMongoInstanceAddress => F[A]
-  ): F[A] =
-    EmbeddedMongo
-      .start[F](port, username, password)
-      .use(test(_))
+    EmbeddedMongo.start[F](Some(mongoPort), Some(mongoUsername), Some(mongoPassword)).use(test(_))
 }
 
 object EmbeddedMongo {
