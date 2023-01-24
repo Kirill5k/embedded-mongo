@@ -2,6 +2,7 @@ package mongodb.embedded
 
 import cats.effect.IO
 import cats.effect.unsafe.IORuntime
+import com.mongodb.client.result.InsertOneResult
 import com.mongodb.{MongoCommandException, MongoSecurityException}
 import mongo4cats.bson.{Document, ObjectId}
 import mongo4cats.client.MongoClient
@@ -19,14 +20,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo {
         MongoClient
           .fromConnectionString[IO](s"mongodb://localhost:$mongoPort")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-              foundDoc     <- coll.find.first
-            } yield (insertResult, foundDoc)
-          }
+          .use(insertAndRetrieveTestDoc)
           .map { case (insertRes, foundDoc) =>
             foundDoc mustBe Some(testDoc)
             insertRes.wasAcknowledged() mustBe true
@@ -37,14 +31,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo(20719) {
         MongoClient
           .fromConnectionString[IO]("mongodb://localhost:20719")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-              foundDoc     <- coll.find.first
-            } yield (insertResult, foundDoc)
-          }
+          .use(insertAndRetrieveTestDoc)
           .map { case (insertRes, foundDoc) =>
             foundDoc mustBe Some(testDoc)
             insertRes.wasAcknowledged() mustBe true
@@ -55,13 +42,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo(20720, "user", "password") {
         MongoClient
           .fromConnectionString[IO]("mongodb://localhost:20720")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-            } yield insertResult
-          }
+          .use(insertAndRetrieveTestDoc)
           .map(_ => fail("should not reach this"))
           .handleError(_ mustBe a[MongoCommandException])
       }.unsafeToFuture()(IORuntime.global)
@@ -70,13 +51,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo(20721) {
         MongoClient
           .fromConnectionString[IO]("mongodb://foo:bar@localhost:20721")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-            } yield insertResult
-          }
+          .use(insertAndRetrieveTestDoc)
           .map(_ => fail("should not reach this"))
           .handleError(_ mustBe a[MongoSecurityException])
       }.unsafeToFuture()(IORuntime.global)
@@ -85,14 +60,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo(20722, "user", "password") {
         MongoClient
           .fromConnectionString[IO]("mongodb://user:password@localhost:20722")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-              foundDoc     <- coll.find.first
-            } yield (insertResult, foundDoc)
-          }
+          .use(insertAndRetrieveTestDoc)
           .map { case (insertRes, foundDoc) =>
             foundDoc mustBe Some(testDoc)
             insertRes.wasAcknowledged() mustBe true
@@ -103,14 +71,7 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       withRunningEmbeddedMongo("user", "password") {
         MongoClient
           .fromConnectionString[IO](s"mongodb://user:password@localhost:$mongoPort")
-          .use { client =>
-            for {
-              db           <- client.getDatabase("db")
-              coll         <- db.getCollection("coll")
-              insertResult <- coll.insertOne(testDoc)
-              foundDoc     <- coll.find.first
-            } yield (insertResult, foundDoc)
-          }
+          .use(insertAndRetrieveTestDoc)
           .map { case (insertRes, foundDoc) =>
             foundDoc mustBe Some(testDoc)
             insertRes.wasAcknowledged() mustBe true
@@ -118,4 +79,11 @@ class EmbeddedMongoSpec extends AsyncWordSpec with Matchers with EmbeddedMongo {
       }.unsafeToFuture()(IORuntime.global)
   }
 
+  private def insertAndRetrieveTestDoc(client: MongoClient[IO]): IO[(InsertOneResult, Option[Document])] =
+    for {
+      db           <- client.getDatabase("db")
+      coll         <- db.getCollection("coll")
+      insertResult <- coll.insertOne(testDoc)
+      foundDoc     <- coll.find.first
+    } yield (insertResult, foundDoc)
 }
