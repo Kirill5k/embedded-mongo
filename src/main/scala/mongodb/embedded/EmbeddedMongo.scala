@@ -2,6 +2,7 @@ package mongodb.embedded
 
 import cats.effect.{Async, Resource}
 import cats.syntax.functor._
+import cats.syntax.applicativeError._
 import com.mongodb.client.MongoClients
 import de.flapdoodle.embed.mongo.commands.MongodArguments
 import de.flapdoodle.embed.mongo.config.Net
@@ -49,9 +50,16 @@ object EmbeddedMongo {
   def start[F[_]](
       port: Int,
       username: Option[String],
-      password: Option[String]
+      password: Option[String],
+      remainingAttempts: Int = 10
   )(implicit F: Async[F]): Resource[F, Unit] =
-    Resource.fromAutoCloseable(F.delay(startMongod(port, username, password))).void
+    Resource
+      .fromAutoCloseable(F.delay(startMongod(port, username, password)))
+      .void
+      .handleErrorWith[Unit, Throwable] { error =>
+        if (remainingAttempts < 0) Resource.raiseError(error)
+        else start[F](port, username, password, remainingAttempts - 1)
+      }
 
   private def startMongod(
       port: Int,
