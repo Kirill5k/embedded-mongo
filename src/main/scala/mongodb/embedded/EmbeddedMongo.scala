@@ -2,7 +2,6 @@ package mongodb.embedded
 
 import cats.effect.{Async, Resource}
 import cats.syntax.functor._
-import cats.syntax.applicativeError._
 import com.mongodb.client.MongoClients
 import de.flapdoodle.embed.mongo.commands.MongodArguments
 import de.flapdoodle.embed.mongo.config.Net
