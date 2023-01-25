@@ -5,6 +5,7 @@ ThisBuild / organization                        := "io.github.kirill5k"
 ThisBuild / githubWorkflowPublishTargetBranches := Nil
 ThisBuild / githubWorkflowJavaVersions          := Seq(JavaSpec.temurin("19"))
 ThisBuild / version                             := "1.0"
+ThisBuild / parallelExecution                   := false
 
 name := "embedded-mongo"
 libraryDependencies ++= Seq(
